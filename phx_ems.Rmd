@@ -1,0 +1,157 @@
+---
+title: "Phoenix EMS Calls for Service"
+author: "Anne Watkins"
+date: "4/18/2020"
+output: html_document
+params:
+  agg.level: 'state_region'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#devtools::install_github("weinbergerlab/ExcessILI")
+library(ckanr)
+library(httr)
+library(jsonlite)
+library(ExcessILI)
+library(cdcfluview)
+```
+
+```{r old_data, eval=F}
+phx14=read.csv('https://www.phoenixopendata.com/dataset/caf49f72-f22f-4ad9-9405-2a3db9619423/resource/011fcb64-2154-47f4-ac13-a7d6ee5015ae/download/phx_2014.csv')
+
+phx15=read.csv('https://www.phoenixopendata.com/dataset/caf49f72-f22f-4ad9-9405-2a3db9619423/resource/6f5b0641-564c-4af1-9963-0579f762de5e/download/phx_2015.csv')
+
+phx16=read.csv('https://www.phoenixopendata.com/dataset/caf49f72-f22f-4ad9-9405-2a3db9619423/resource/752838da-9893-4058-a5e4-e64e452391c9/download/phx_2016.csv')
+
+phx17=read.csv('https://www.phoenixopendata.com/dataset/caf49f72-f22f-4ad9-9405-2a3db9619423/resource/594a8d58-dda9-4db9-815e-5d249e3f6f51/download/phx_2017.csv')
+
+phx18=read.csv('https://www.phoenixopendata.com/dataset/caf49f72-f22f-4ad9-9405-2a3db9619423/resource/fd71de06-a495-4731-b318-9b3d19a640b2/download/calls-for-service-fire_calls-for-service-2018_calls_for_service.csv')
+
+phx19=read.csv('https://www.phoenixopendata.com/dataset/caf49f72-f22f-4ad9-9405-2a3db9619423/resource/45b13b01-d1c5-4159-b313-8d409dd431cb/download/calls-for-service-fire_calls-for-service-2019_calls_for_service.csv')
+
+names(phx18)=names(phx14)
+names(phx19)=names(phx14)
+
+old.data <- rbind.data.frame(phx14, phx15,phx16,phx17,phx18,phx19)
+
+old.data <- old.data[,c('REPORTED','NATURE.TEXT')]
+write.csv(old.data, './Data/phx14_19.csv')
+saveRDS(old.data, './Data/phx14_19.rds')
+```
+
+```{r}
+phx.old <- readRDS('./Data/phx14_19.rds')
+
+phx.old <- phx.old[,-1]
+phx20=read.csv('https://www.phoenixopendata.com/dataset/caf49f72-f22f-4ad9-9405-2a3db9619423/resource/d0164e0f-8af4-4bbe-99f6-f952717aaf36/download/calls-for-service-fire_calls-for-service-2020_calls_for_service.csv')
+
+names(phx20)=names(phx.old)
+```
+
+```{r}
+phx <- rbind.data.frame(phx.old, phx20)
+
+date.piece <- gsub( " .*$", "", phx$REPORTED )
+a <- as.Date(date.piece,format="%m-%d-%Y") # Produces NA when format is not "%m-%d-%Y"
+b <- as.Date(date.piece,format="%m/%d/%Y") # Produces NA when format is not "%d.%m.%Y"
+a[is.na(a)] <- b[!is.na(b)] # Combine both while keeping their ranks
+phx$REPORTED <- a # Put it back in your dataframe
+
+phx$state=0
+phx$state='AZ'
+```
+
+
+```{r}
+table(phx$NATURE.TEXT)
+#ill person, ill person (ALS), difficulty breathing
+#chest pain, heart problems, stroke
+```
+
+```{r}
+phx$breath=0
+phx$breath[grep('reathing',phx$NATURE.TEXT)]=1
+
+phx$ill=0
+phx$ill[grep('ill person',phx$NATURE.TEXT)]=1
+
+phx$chest=0
+phx$chest[grep('chest pain',phx$NATURE.TEXT)]=1
+
+phx$heart=0
+phx$heart[grep('heart problems',phx$NATURE.TEXT)]=1
+
+phx$stroke=0
+phx$stroke[grep('stroke',phx$NATURE.TEXT)]=1
+
+phx$overdose=0
+phx$overdose[grep('overdose',phx$NATURE.TEXT)]=1
+
+phx$gunshot=0
+phx$gunshot[grep('gunshot',phx$NATURE.TEXT)]=1
+
+phx$diabetic=0
+phx$diabetic[grep('diabetic',phx$NATURE.TEXT)]=1
+
+phx$altered=0
+phx$altered[grep('altered',phx$NATURE.TEXT)]=1
+
+phx$pedestrian=0
+phx$pedestrian[grep('pedestrian',phx$NATURE.TEXT)]=1
+
+phx$age=1
+
+#phx=phx[-which(is.na(phx$REPORTED)),]
+
+```
+
+
+```{r}
+ts.phx<-ts_format(line.list=phx, datevar='REPORTED', statevar='state',agevar='age', syndromes=c('breath','ill','chest','heart','stroke', 'overdose','gunshot','diabetic','altered','pedestrian'), remove.final = F,resolution = 'day')
+
+ts.phx=ts.phx[order(ts.phx$REPORTED),]
+tmin.p=ts.phx$REPORTED[1]
+tmax.p=ts.phx$REPORTED[nrow(ts.phx)]
+dates.p=seq(tmin.p,tmax.p,by='day')
+dates.p.df=data.frame(list(REPORTED=dates.p))
+ts.phx2=merge(ts.phx,dates.p.df,all=T)
+for(j in 2:10){
+  ts.phx2[which(is.na(ts.phx2[,j])),j]=NA
+}
+ts.phx2$state[which(ts.phx2$state==0)]='AZ'
+ts.phx2$sub.statevar[which(ts.phx2$sub.statevar==0)]='AZ'
+
+ts.phx2$both=ts.phx2$breath + ts.phx2$ill
+
+```
+
+```{r}
+#ts2=na.omit(ts2)
+plot(ts.phx2$REPORTED,ts.phx2$breath,type='l')
+plot(ts.phx2$REPORTED,ts.phx2$heart,type='l')
+```
+
+```{r}
+#ts1$both=ts1$breath + ts1$covid
+
+excess_cases_phx=excessCases(ds=ts.phx2,
+                          datevar='REPORTED',
+                          statevar='state',
+                          denom.var = 'all.visits',
+                          adj.flu='none',
+                          extrapolation.date = as.Date('2020-03-01'),
+                          use.syndromes=c('breath','ill','chest','heart','stroke', 'overdose','gunshot','diabetic','altered','pedestrian', 'both'),
+                          time.res='day',agevar = 'none',extend.epiyear =TRUE
+                          )
+
+```
+
+```{r}
+dashboardPlot(excess_cases_phx)
+
+```
+
