@@ -48,7 +48,7 @@ phx.old <- readRDS('./Data/phx14_19.rds')
 
 phx20=read.csv('https://www.phoenixopendata.com/dataset/caf49f72-f22f-4ad9-9405-2a3db9619423/resource/d0164e0f-8af4-4bbe-99f6-f952717aaf36/download/calls-for-service-fire_calls-for-service-2020_calls_for_service.csv')
 
-phx20 <- phx20[,c("REPORTED", 'NATURE_CODE')]
+phx20 <- phx20[,c("REPORTED", 'NATURE_TEXT')]
 
 names(phx20)=names(phx.old)
 ```
