@@ -18,6 +18,8 @@ library(httr)
 library(jsonlite)
 library(ExcessILI)
 library(cdcfluview)
+library(tidyr)
+library(purrr)
 ```
 
 ```{r old_data, eval=F}
@@ -139,13 +141,16 @@ plot(ts.phx2$REPORTED,ts.phx2$heart,type='l')
 ```{r}
 #ts1$both=ts1$breath + ts1$covid
 
+ts.phx2$one <-0.5
 excess_cases_phx=excessCases(ds=ts.phx2,
                           datevar='REPORTED',
                           statevar='state',
-                          denom.var = 'all.visits',
+                          denom.var = 'one',
                           adj.flu='none',
                           extrapolation.date = as.Date('2020-03-01'),
-                          use.syndromes=c('breath','ill','chest','heart','stroke', 'overdose','gunshot','diabetic','altered','pedestrian', 'both'),
+                          model.type ='negbin',
+                          #use.syndromes=c('breath','ill','chest','heart','stroke', 'overdose','gunshot','diabetic','altered','pedestrian', 'both'),
+                          use.syndromes=c('breath', 'heart','stroke'),
                           time.res='day',agevar = 'none',extend.epiyear =TRUE
                           )
 
@@ -155,4 +160,15 @@ excess_cases_phx=excessCases(ds=ts.phx2,
 dashboardPlot(excess_cases_phx)
 
 ```
+
+```{r}
+# dashboardPlotOe(excess_output=excess_cases_phx,
+#                             datevar="REPORTED",  
+#                             agevar='age',    
+#                             statevar='state',  
+#                             outcome=c('breath'), 
+#                             yaxis=agevar, 
+#                             facet=statevar) 
+```
+
 
